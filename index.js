@@ -37,6 +37,12 @@ async function run() {
         const result = await coursesCollection.findOne({_id: new ObjectId(courseId)})
         res.send(result)
     })
+
+    app.get("/featured", async(req, res) => {
+        const cursor = coursesCollection.find().limit(4);
+        const result = await cursor.toArray();
+        res.send(result)
+    })
     
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
