@@ -1,5 +1,6 @@
 const dotenv = require("dotenv");
 const express = require("express");
+const cors = require("cors")
 const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 
 dotenv.config();
@@ -8,6 +9,9 @@ const port = process.env.PORT;
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = process.env.MONGODB_URI;
+
+app.use(cors())
+app.use(express.json())
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -32,7 +36,7 @@ const verifyToken = async (req, res, next) => {
     );
     const { payload } = await jwtVerify(token, JWKS);
     req.user = payload;
-    console.log(req.user);
+    // console.log(req.user);
     next();
   } catch (error) {
     return res.status(401).json({ message: "Forbidden" });
@@ -46,6 +50,7 @@ async function run() {
 
     const db = client.db("mentoradb");
     const coursesCollection = db.collection("courses");
+    const enrollmentCollection = db.collection("enrollments")
 
     app.get("/courses", async (req, res) => {
       const { query } = req.query;
@@ -72,6 +77,37 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result);
     });
+
+    app.get("/enrollments/:userId", verifyToken, async(req, res) => {
+      const {userId} = req.params;
+      const result = await enrollmentCollection.find({userId: userId}).toArray();
+      res.send(result)
+    })
+
+    app.patch("/enrollments/:courseId", verifyToken, async(req, res) => {
+      const {courseId} = req.params;
+      const enrollmentData = req.body
+      console.log(enrollmentData)
+      const course = await coursesCollection.findOne({_id: new ObjectId(courseId)})
+      if(!course){
+        return res.status(404).json({message: "Course not found!"})
+      }
+      await coursesCollection.updateOne(
+        {_id: new ObjectId(courseId)},
+        {
+          $inc: {enrollCount: 1},
+          $set: {
+            lastEnrolledAt: new Date(),
+          }
+        }
+      )
+      const result = await enrollmentCollection.insertOne({
+        ...enrollmentData,
+        enrolledAt: new Date()
+      })
+      // console.log(result)
+      res.send(result)
+    })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
