@@ -1,5 +1,6 @@
 const dotenv = require("dotenv");
 const express = require("express");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 
 dotenv.config();
 const app = express();
@@ -24,9 +25,18 @@ const verifyToken = async (req, res, next) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
   const token = authorization.split(" ")[1];
-  console.log(token);
-
-  next();
+  // console.log(token);
+  try {
+    const JWKS = createRemoteJWKSet(
+      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+    );
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload;
+    console.log(req.user);
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Forbidden" });
+  }
 };
 
 async function run() {
@@ -38,7 +48,13 @@ async function run() {
     const coursesCollection = db.collection("courses");
 
     app.get("/courses", async (req, res) => {
-      const cursor = coursesCollection.find({});
+      const { query } = req.query;
+      let cursor;
+      if (query) {
+        cursor = coursesCollection.find({ title: { $eq: query } });
+      } else {
+        cursor = coursesCollection.find({});
+      }
       const result = await cursor.toArray();
       res.send(result);
     });
