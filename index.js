@@ -1,12 +1,11 @@
-const dotenv = require("dotenv")
-const express = require('express')
+const dotenv = require("dotenv");
+const express = require("express");
 
 dotenv.config();
-const app = express()
-const port = process.env.PORT
+const app = express();
+const port = process.env.PORT;
 
-
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = process.env.MONGODB_URI;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -15,38 +14,54 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
+
+const verifyToken = async (req, res, next) => {
+  const { authorization } = req?.headers;
+  // console.log(authorization)
+  if (!authorization) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const token = authorization.split(" ")[1];
+  console.log(token);
+
+  next();
+};
 
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
-    const db = client.db("mentoradb")
-    const coursesCollection = db.collection("courses")
+    const db = client.db("mentoradb");
+    const coursesCollection = db.collection("courses");
 
-    app.get("/courses", async(req, res) => {
-        const cursor = coursesCollection.find({})
-        const result = await cursor.toArray()
-        res.send(result)
-    })
+    app.get("/courses", async (req, res) => {
+      const cursor = coursesCollection.find({});
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
-    app.get("/courses/:courseId", async(req, res) => {
-        const {courseId} = req.params;
-        const result = await coursesCollection.findOne({_id: new ObjectId(courseId)})
-        res.send(result)
-    })
+    app.get("/courses/:courseId", verifyToken, async (req, res) => {
+      const { courseId } = req.params;
+      const result = await coursesCollection.findOne({
+        _id: new ObjectId(courseId),
+      });
+      res.send(result);
+    });
 
-    app.get("/featured", async(req, res) => {
-        const cursor = coursesCollection.find().limit(4);
-        const result = await cursor.toArray();
-        res.send(result)
-    })
-    
+    app.get("/featured", async (req, res) => {
+      const cursor = coursesCollection.find().limit(4);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!",
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -54,12 +69,10 @@ async function run() {
 }
 run().catch(console.dir);
 
-
-
-app.get('/', (req, res) => {
-  res.send('Hello World!')
-})
+app.get("/", (req, res) => {
+  res.send("Hello World!");
+});
 
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
-})
+  console.log(`Example app listening on port ${port}`);
+});
